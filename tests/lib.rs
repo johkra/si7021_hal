@@ -1,12 +1,14 @@
 extern crate embedded_hal;
 extern crate si7021_hal;
 
+use embedded_hal::blocking::i2c::Write;
 use embedded_hal::blocking::i2c::WriteRead;
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]
 enum Error {
     NoResponse,
+    UnknownCommand,
 }
 
 #[derive(Debug)]
@@ -25,6 +27,16 @@ impl<'a> WriteRead for MockI2c<'a> {
         match self.request_response_map.get(bytes) {
             Some(buf) => buffer.copy_from_slice(buf),
             None => return Err(Error::NoResponse),
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Write for MockI2c<'a> {
+    type Error = Error;
+    fn write(&mut self, _address: u8, bytes: &[u8]) -> Result<(), Self::Error> {
+        if !self.request_response_map.contains_key(bytes) {
+            return Err(Error::UnknownCommand);
         }
         Ok(())
     }
@@ -102,7 +114,10 @@ mod tests {
         });
         let temperature = si7021.temperature_rh_measurement();
         assert!(temperature.is_err());
-        assert_eq!(temperature.unwrap_err(), si7021_hal::Error::NoPreviousHumidityMeasurement);
+        assert_eq!(
+            temperature.unwrap_err(),
+            si7021_hal::Error::NoPreviousHumidityMeasurement
+        );
     }
 
     #[test]
@@ -180,5 +195,14 @@ mod tests {
             firmware_revision.unwrap_err(),
             si7021_hal::Error::I2c(Error::NoResponse)
         );
+    }
+
+    #[test]
+    fn reset() {
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[(&[0xfe], &[])]),
+        });
+        let firmware_revision = si7021.reset();
+        assert!(firmware_revision.is_ok());
     }
 }

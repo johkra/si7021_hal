@@ -1,5 +1,7 @@
 #![no_std]
 
+#[macro_use]
+extern crate bitfield;
 extern crate byteorder;
 extern crate embedded_hal;
 
@@ -17,6 +19,16 @@ pub enum Error<E> {
 pub struct Si7021<I2C> {
     i2c: I2C,
 }
+
+const MEASURE_HUMIDITY_HOLD: &[u8] = &[0xe5];
+const MEASURE_TEMPERATURE_HOLD: &[u8] = &[0xe3];
+const READ_TEMPERATURE_FROM_HUMIDITY_MEASUREMENT: &[u8] = &[0xe0];
+const RESET: &[u8] = &[0xfe];
+const READ_USER_REGISTER1: &[u8] = &[0xe7];
+const READ_HEATER_REGISTER: &[u8] = &[0x11];
+const READ_ELECTRONIC_ID1: &[u8] = &[0xfa, 0x0f];
+const READ_ELECTRONIC_ID2: &[u8] = &[0xfc, 0xc9];
+const READ_FIRMWARE_REVISION: &[u8] = &[0x84, 0xb8];
 
 #[derive(Default)]
 struct Crc8 {
@@ -153,9 +165,31 @@ impl<E> Humidity<E> {
     }
 }
 
+bitfield!{
+    struct UserRegister1(u8);
+    impl Debug;
+    res1, set_res1: 7;
+    vdds, _: 6;
+    htre, set_htre: 2;
+    res0, set_res0: 0;
+}
+
+enum MeasurementResolution {
+    Rh12Temp14,
+    Rh8Temp12,
+    Rh10Temp10,
+    Rh11Temp11,
+}
+
+bitfield!{
+    struct HeaterRegister(u8);
+    impl Debug;
+    heater, set_heater: 3, 0;
+}
+
 impl<E, I2C> Si7021<I2C>
 where
-    I2C: i2c::WriteRead<Error = E>,
+    I2C: i2c::WriteRead<Error = E> + i2c::Write<Error = E>,
 {
     pub fn new(i2c: I2C) -> Self {
         Si7021 { i2c }
@@ -171,7 +205,7 @@ where
     // Returns relative humidity in % scaled by 100, i.e. 23.15% returns 2315
     pub fn humidity(&mut self) -> Result<i32, Error<E>> {
         let mut humidity: Humidity<E> = Humidity::new();
-        self.write_read(&[0xe5], humidity.buf())?;
+        self.write_read(MEASURE_HUMIDITY_HOLD, humidity.buf())?;
         humidity.humidity()
     }
 
@@ -179,28 +213,36 @@ where
     // Temperature taken during last relative humidity measurement
     pub fn temperature_rh_measurement(&mut self) -> Result<i32, Error<E>> {
         let mut temperature: Temperature<E> = Temperature::new();
-        self.write_read(&[0xe0], temperature.buf_nocrc())?;
+        self.write_read(
+            READ_TEMPERATURE_FROM_HUMIDITY_MEASUREMENT,
+            temperature.buf_nocrc(),
+        )?;
         temperature.temperature_nocrc()
     }
 
     // Returns temperature in °C scaled by 100, i.e. 23.15°C returns 2315
     pub fn temperature(&mut self) -> Result<i32, Error<E>> {
         let mut temperature: Temperature<E> = Temperature::new();
-        self.write_read(&[0xe3], temperature.buf())?;
+        self.write_read(MEASURE_TEMPERATURE_HOLD, temperature.buf())?;
         temperature.temperature()
     }
 
     pub fn serial_number(&mut self) -> Result<u64, Error<E>> {
         let mut serial_number: SerialNumber<E> = SerialNumber::new();
-        self.write_read(&[0xfa, 0x0f], serial_number.buf_id1())?;
-        self.write_read(&[0xfc, 0xc9], serial_number.buf_id2())?;
+        self.write_read(READ_ELECTRONIC_ID1, serial_number.buf_id1())?;
+        self.write_read(READ_ELECTRONIC_ID2, serial_number.buf_id2())?;
         serial_number.serial_number()
     }
 
     pub fn firmware_revision(&mut self) -> Result<u8, Error<E>> {
         let mut buffer = [0u8; 1];
-        self.write_read(&[0x84, 0xb8], &mut buffer)?;
+        self.write_read(READ_FIRMWARE_REVISION, &mut buffer)?;
         Ok(buffer[0])
+    }
+
+    pub fn reset(&mut self) -> Result<(), Error<E>> {
+        self.i2c.write(0x40, RESET).map_err(Error::I2c)?;
+        Ok(())
     }
 }
 
