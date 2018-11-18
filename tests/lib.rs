@@ -11,6 +11,7 @@ enum Error {
     UnknownCommand,
 }
 
+// TODO: Move to embedded-hal-mock crate?
 #[derive(Debug)]
 struct MockI2c<'a> {
     request_response_map: HashMap<&'a [u8], &'a [u8]>,
@@ -44,6 +45,7 @@ impl<'a> Write for MockI2c<'a> {
 
 #[cfg(test)]
 mod tests {
+    use si7021_hal::MeasurementResolution;
     use si7021_hal::Si7021;
     use std::collections::HashMap;
     use Error;
@@ -204,5 +206,90 @@ mod tests {
         });
         let firmware_revision = si7021.reset();
         assert!(firmware_revision.is_ok());
+    }
+
+    #[test]
+    fn set_measurement_resolution() {
+        // Fill reserved bits with 1 and ensure they're written back
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[(&[0xe7], &[0xff]), (&[0xe6, 0x7e], &[])]),
+        });
+        let measurement_resolution =
+            si7021.set_measurement_resolution(MeasurementResolution::Rh12Temp14);
+        assert!(measurement_resolution.is_ok());
+    }
+
+    #[test]
+    fn get_measurement_resolution() {
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[(&[0xe7], &[0x01])]),
+        });
+        let measurement_resolution = si7021.measurement_resolution();
+        assert!(measurement_resolution.is_ok());
+        assert_eq!(
+            measurement_resolution.unwrap(),
+            MeasurementResolution::Rh8Temp12
+        );
+    }
+
+    #[test]
+    fn get_heater_off() {
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[(&[0xe7], &[0x00]), (&[0x11], &[0x00])]),
+        });
+        let heater = si7021.heater();
+        assert!(heater.is_ok());
+        assert_eq!(heater.unwrap(), None);
+    }
+
+    #[test]
+    fn get_heater_on() {
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[(&[0xe7], &[0x04]), (&[0x11], &[0x0a])]),
+        });
+        let heater = si7021.heater();
+        assert!(heater.is_ok());
+        assert_eq!(heater.unwrap(), Some(0x0a));
+    }
+
+    #[test]
+    fn set_heater_off() {
+        // Fill reserved bits with 1 and ensure they're written back
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[
+                (&[0xe7], &[0xff]),
+                (&[0x11], &[0xff]),
+                (&[0xe6, 0xfb], &[]),
+                (&[0x51, 0xff], &[]),
+            ]),
+        });
+        let heater = si7021.set_heater(None);
+        assert!(heater.is_ok());
+    }
+
+    #[test]
+    fn set_heater_on() {
+        // Fill reserved bits with 1 and ensure they're written back
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[
+                (&[0xe7], &[0xfb]),
+                (&[0x11], &[0xf0]),
+                (&[0xe6, 0xff], &[]),
+                (&[0x51, 0xfa], &[]),
+            ]),
+        });
+        let heater = si7021.set_heater(Some(0x0a));
+        assert!(heater.is_ok());
+    }
+
+    #[test]
+    fn set_heater_invalid_power() {
+        // Fill reserved bits with 1 and ensure they're written back
+        let mut si7021 = Si7021::new(MockI2c {
+            request_response_map: make_map(&[(&[0xe7], &[0xfb]), (&[0x11], &[0xf0])]),
+        });
+        let heater = si7021.set_heater(Some(0xf0));
+        assert!(heater.is_err());
+        assert_eq!(heater.unwrap_err(), si7021_hal::Error::InvalidHeaterLevel);
     }
 }
