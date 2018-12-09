@@ -6,8 +6,8 @@ extern crate byteorder;
 extern crate embedded_hal;
 
 use embedded_hal::blocking::i2c;
-pub use internal::MeasurementResolution;
-use internal::{Humidity, SerialNumber, Temperature, UserHeaterRegister};
+pub use self::internal::MeasurementResolution;
+use self::internal::{Humidity, SerialNumber, Temperature, UserHeaterRegister};
 
 #[derive(Debug, PartialEq)]
 pub enum Error<E> {
