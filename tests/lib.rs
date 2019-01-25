@@ -48,8 +48,8 @@ mod tests {
     use si7021_hal::MeasurementResolution;
     use si7021_hal::Si7021;
     use std::collections::HashMap;
-    use Error;
-    use MockI2c;
+    use super::Error;
+    use super::MockI2c;
 
     // Type coercion from &[{integer}; N] to &[u8] failed when using the maplit macros.
     // Revisit usage of the crate after transitive coercions
