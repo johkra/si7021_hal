@@ -2,6 +2,14 @@ use super::Error;
 use byteorder::{BigEndian, ByteOrder};
 use core::marker::PhantomData;
 
+#[derive(Debug, PartialEq)]
+pub enum MeasurementResolution {
+    Rh12Temp14 = 0x00,
+    Rh8Temp12 = 0x01,
+    Rh10Temp10 = 0x80,
+    Rh11Temp11 = 0x81,
+}
+
 #[derive(Default)]
 pub struct Crc8 {
     crc: u8,
@@ -135,14 +143,6 @@ impl<E> Humidity<E> {
             rh => rh,
         })
     }
-}
-
-#[derive(Debug, PartialEq)]
-pub enum MeasurementResolution {
-    Rh12Temp14 = 0x00,
-    Rh8Temp12 = 0x01,
-    Rh10Temp10 = 0x80,
-    Rh11Temp11 = 0x81,
 }
 
 pub struct UserHeaterRegister<E> {
