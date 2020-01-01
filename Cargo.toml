@@ -6,8 +6,3 @@ edition = "2018"
 
 [dependencies]
 embedded-hal = "0.2"
-
-[dependencies.byteorder]
-default-features = false
-version = "1"
-

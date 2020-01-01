@@ -1,5 +1,4 @@
 use super::Error;
-use byteorder::{BigEndian, ByteOrder};
 use core::marker::PhantomData;
 
 #[derive(Debug, PartialEq)]
@@ -51,35 +50,30 @@ impl<E> SerialNumber<E> {
     }
     pub fn serial_number(&self) -> Result<u64, Error<E>> {
         let mut crc = Crc8::default();
-        let (sna_3, sna_2, sna_1, sna_0, crc_a) = (
+        let sna_bytes = [
             self.buffer[0],
             self.buffer[2],
             self.buffer[4],
             self.buffer[6],
-            self.buffer[7],
-        );
-        if crc.update(&[sna_3, sna_2, sna_1, sna_0]) != crc_a {
+        ];
+        let crc_a = self.buffer[7];
+        if crc.update(&sna_bytes) != crc_a {
             return Err(Error::ChecksumFailure);
         }
         let mut crc = Crc8::default();
-        let (snb_3, snb_2, snb_1, snb_0, crc_b) = (
+        let snb_bytes = [
             self.buffer[8],
             self.buffer[9],
             self.buffer[11],
             self.buffer[12],
-            self.buffer[13],
-        );
-        if crc.update(&[snb_3, snb_2, snb_1, snb_0]) != crc_b {
+        ];
+        let crc_b = self.buffer[13];
+        if crc.update(&snb_bytes) != crc_b {
             return Err(Error::ChecksumFailure);
         }
-        Ok(u64::from(sna_3) << 56
-            | u64::from(sna_2) << 48
-            | u64::from(sna_1) << 40
-            | u64::from(sna_0) << 32
-            | u64::from(snb_3) << 24
-            | u64::from(snb_2) << 16
-            | u64::from(snb_1) << 8
-            | u64::from(snb_0))
+        let sna = u32::from_be_bytes(sna_bytes);
+        let snb = u32::from_be_bytes(snb_bytes);
+        Ok(u64::from(sna) << 32 | u64::from(snb))
     }
 }
 
@@ -108,11 +102,14 @@ impl<E> Temperature<E> {
         }
         self.temperature_nocrc()
     }
+    fn buffer_temperature_raw(&self) -> i32 {
+        u16::from_be_bytes([self.buffer[0], self.buffer[1]]).into()
+    }
     pub fn temperature_nocrc(&self) -> Result<i32, Error<E>> {
         if self.buffer[0..2] == [0x00, 0x00] {
             return Err(Error::NoPreviousHumidityMeasurement);
         }
-        Ok(((17572 * i32::from(BigEndian::read_u16(&self.buffer))) / 65536) - 4685)
+        Ok(17572 * self.buffer_temperature_raw() / 65536 - 4685)
     }
 }
 
@@ -131,12 +128,15 @@ impl<E> Humidity<E> {
     pub fn buf(&mut self) -> &mut [u8] {
         &mut self.buffer
     }
+    fn buffer_humidity_raw(&self) -> i32 {
+        u16::from_be_bytes([self.buffer[0], self.buffer[1]]).into()
+    }
     pub fn humidity(&self) -> Result<i32, Error<E>> {
         let mut crc = Crc8::default();
         if crc.update(&self.buffer[0..2]) != self.buffer[2] {
             return Err(Error::ChecksumFailure);
         }
-        let val = ((12500 * i32::from(BigEndian::read_u16(&self.buffer))) / 65536) - 600;
+        let val = 12500 * self.buffer_humidity_raw() / 65536 - 600;
         Ok(match val {
             rh if rh > 10000 => 10000,
             rh if rh < 0 => 0,

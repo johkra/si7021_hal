@@ -45,11 +45,11 @@ impl<'a> Write for MockI2c<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::Error;
+    use super::MockI2c;
     use si7021_hal::MeasurementResolution;
     use si7021_hal::Si7021;
     use std::collections::HashMap;
-    use super::Error;
-    use super::MockI2c;
 
     // Type coercion from &[{integer}; N] to &[u8] failed when using the maplit macros.
     // Revisit usage of the crate after transitive coercions

@@ -2,12 +2,9 @@
 
 mod internal;
 
-extern crate byteorder;
-extern crate embedded_hal;
-
-use embedded_hal::blocking::i2c;
 pub use self::internal::MeasurementResolution;
 use self::internal::{Humidity, SerialNumber, Temperature, UserHeaterRegister};
+use embedded_hal::blocking::i2c;
 
 #[derive(Debug, PartialEq)]
 pub enum Error<E> {
@@ -110,7 +107,8 @@ where
             .write(
                 0x40,
                 &[WRITE_USER_REGISTER1[0], user_heater_register.buf_user()[0]],
-            ).map_err(Error::I2c)?;
+            )
+            .map_err(Error::I2c)?;
         Ok(())
     }
 
@@ -140,7 +138,8 @@ where
             .write(
                 0x40,
                 &[WRITE_USER_REGISTER1[0], user_heater_register.buf_user()[0]],
-            ).map_err(Error::I2c)?;
+            )
+            .map_err(Error::I2c)?;
         self.i2c
             .write(
                 0x40,
@@ -148,7 +147,8 @@ where
                     WRITE_HEATER_REGISTER[0],
                     user_heater_register.buf_heater()[0],
                 ],
-            ).map_err(Error::I2c)?;
+            )
+            .map_err(Error::I2c)?;
         Ok(())
     }
 }
